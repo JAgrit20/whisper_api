@@ -1,26 +1,34 @@
-#!/usr/bin/env python3
 import sys
 import json
-from transformers import pipeline
+import whisper
 
 def transcribe_audio(file_path):
-    # Create an ASR pipeline using Whisper
-    whisper_asr = pipeline(
-        "automatic-speech-recognition",
-        model="openai/whisper-medium"
-    )
-    result = whisper_asr(file_path)
-    # The pipeline returns a dictionary with a 'text' key
-    return result["text"]
+    try:
+        # Load Whisper model
+        model = whisper.load_model("tiny", device="cpu")
+        
+        # Load audio file
+        audio = whisper.load_audio(file_path)
+        
+        # Transcribe the audio
+        result = model.transcribe(audio)
+        
+        # Return the transcription
+        return {"transcription": result["text"]}
+    except Exception as e:
+        # Handle errors gracefully and return them in JSON format
+        return {"error": str(e)}
 
 if __name__ == "__main__":
-    # Expect a single argument: path to the audio file
+    # Check if an audio file path is provided
     if len(sys.argv) < 2:
         print(json.dumps({"error": "No audio file path provided"}))
         sys.exit(1)
 
     audio_file_path = sys.argv[1]
-    transcribed_text = transcribe_audio(audio_file_path)
-
-    # Print the transcription in JSON format, so PHP can parse if needed
-    print(json.dumps({"transcription": transcribed_text}))
+    
+    # Perform transcription
+    output = transcribe_audio(audio_file_path)
+    
+    # Print result as JSON
+    print(json.dumps(output))

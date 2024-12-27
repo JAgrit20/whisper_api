@@ -27,18 +27,45 @@ if (!move_uploaded_file($_FILES["audio_file"]["tmp_name"], $targetFile)) {
 }
 
 // Call the Python script to transcribe the file
-$escapedFilePath = escapeshellarg($targetFile);  // Escape for safety
-$command = "/usr/bin/env python3 " . __DIR__ . "/transcribe.py $escapedFilePath";
+$escapedFilePath = escapeshellarg($targetFile);
+
+// IMPORTANT: if you have a virtual environment, use its python path here, for example:
+// $python = "/var/www/html/whisper_api/venv/bin/python";
+// Otherwise, try system python:
+$python = "/usr/bin/env python3";
+
+// Append '2>&1' to capture any errors on stderr
+$command = $python . " " . escapeshellarg(__DIR__ . "/transcribe.py") . " $escapedFilePath 2>&1";
 $output = shell_exec($command);
 
-// You can decode the JSON printed by Python if you like:
+// If shell_exec failed or returned nothing, handle that first
+if ($output === null || $output === "") {
+    echo json_encode([
+        "error" => "No output from transcription (possibly a missing dependency or permission issue).",
+        "raw_output" => $output
+    ]);
+    exit;
+}
+
+// Attempt to parse JSON
 $result = json_decode($output, true);
 
-if ($result && isset($result["transcription"])) {
+// Check for JSON parse errors
+if (json_last_error() !== JSON_ERROR_NONE) {
+    echo json_encode([
+        "error" => "Failed to parse JSON output from transcription script.",
+        "raw_output" => $output
+    ]);
+    exit;
+}
+
+// If we got a valid transcription field, respond with it
+if (isset($result["transcription"])) {
     echo json_encode([
         "transcribed_text" => $result["transcription"]
     ]);
 } else {
+    // If Python returned an error or some other structure
     echo json_encode([
         "error" => "Failed to transcribe or parse result",
         "raw_output" => $output
