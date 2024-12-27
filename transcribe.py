@@ -1,3 +1,8 @@
+import os
+
+# Must set this before importing whisper or torch, so that the cache folder is used properly
+os.environ["XDG_CACHE_HOME"] = "/var/www/.cache"
+
 import sys
 import json
 import whisper
