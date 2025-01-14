@@ -15,21 +15,33 @@ if ($mysqli->connect_error) {
     exit;
 }
 
-// Get the recording name from GET parameters
+// Validate and sanitize GET parameters
 if (isset($_GET['recording_name']) && !empty($_GET['recording_name'])) {
-    $recordingName = $_GET['recording_name'];
+    $recordingName = preg_replace('/[^A-Za-z0-9_\-]/', '_', $_GET['recording_name']);
+    $recordingName = substr($recordingName, 0, 255);
 } else {
     echo json_encode(["error" => "Recording name is required"]);
     exit;
 }
 
-// Sanitize the recording name
-$recordingName = preg_replace('/[^A-Za-z0-9_\-]/', '_', $recordingName);
-$recordingName = substr($recordingName, 0, 255);
+if (isset($_GET['user_id']) && !empty($_GET['user_id'])) {
+    $userId = intval($_GET['user_id']); // Sanitize as an integer
+} else {
+    echo json_encode(["error" => "User ID is required"]);
+    exit;
+}
+
+if (isset($_GET['chunk_id']) && !empty($_GET['chunk_id'])) {
+    $chunkId = preg_replace('/[^A-Za-z0-9_\-]/', '_', $_GET['chunk_id']);
+    $chunkId = substr($chunkId, 0, 255);
+} else {
+    echo json_encode(["error" => "Chunk ID is required"]);
+    exit;
+}
 
 // Fetch the recording details
-$stmt = $mysqli->prepare("SELECT id, status, transcription FROM recordings WHERE recording_name = ?");
-$stmt->bind_param("s", $recordingName);
+$stmt = $mysqli->prepare("SELECT id, status, transcription FROM recordings WHERE recording_name = ? AND user_id = ? AND chunk_id = ?");
+$stmt->bind_param("sis", $recordingName, $userId, $chunkId);
 $stmt->execute();
 $stmt->store_result();
 
@@ -47,6 +59,8 @@ $stmt->close();
 
 $response = [
     "recording_name" => $recordingName,
+    "user_id" => $userId,
+    "chunk_id" => $chunkId,
     "status" => $status
 ];
 
