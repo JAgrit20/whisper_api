@@ -1,39 +1,69 @@
 import os
-
-# Must set this before importing whisper or torch, so that the cache folder is used properly
-os.environ["XDG_CACHE_HOME"] = "/var/www/.cache"
-
-import sys
-import json
+import time
+import mysql.connector
 import whisper
+import json
 
-def transcribe_audio(file_path):
+def transcribe_audio(file_path, language=None):
     try:
-        # Load Whisper model
         model = whisper.load_model("tiny", device="cpu")
-        
-        # Load audio file
         audio = whisper.load_audio(file_path)
-        
-        # Transcribe the audio
-        result = model.transcribe(audio)
-        
-        # Return the transcription
+        result = model.transcribe(audio, language=language) if language else model.transcribe(audio)
         return {"transcription": result["text"]}
     except Exception as e:
-        # Handle errors gracefully and return them in JSON format
         return {"error": str(e)}
+    
+
+def process_queue():
+    while True:
+        try:
+            # Connect to the database
+            conn = mysql.connector.connect(
+                host="localhost",
+                user="root",
+                password="Athabasca@123",
+                database="notetakers"
+            )
+            cursor = conn.cursor(dictionary=True)
+
+            # Fetch the next queued recording
+            cursor.execute("SELECT * FROM recordings WHERE status = 'queued' ORDER BY created_at LIMIT 1")
+            recording = cursor.fetchone()
+
+            if recording:
+                # Mark as processing
+                cursor.execute("UPDATE recordings SET status = 'processing' WHERE id = %s", (recording['id'],))
+                conn.commit()
+
+                # Transcribe the audio
+                file_path = recording['file_path']
+                language = recording['language']
+                result = transcribe_audio(file_path, language)
+
+                if "transcription" in result:
+                    # Update the database with the transcription
+                    cursor.execute(
+                        "UPDATE recordings SET status = 'completed', transcription = %s WHERE id = %s",
+                        (result['transcription'], recording['id'])
+                    )
+                else:
+                    # Handle errors
+                    cursor.execute(
+                        "UPDATE recordings SET status = 'failed', transcription = %s WHERE id = %s",
+                        (result['error'], recording['id'])
+                    )
+
+                conn.commit()
+
+            else:
+                # No queued recordings, wait and retry
+                time.sleep(5)
+
+        except Exception as e:
+            print(f"Error: {str(e)}")
+        finally:
+            cursor.close()
+            conn.close()
 
 if __name__ == "__main__":
-    # Check if an audio file path is provided
-    if len(sys.argv) < 2:
-        print(json.dumps({"error": "No audio file path provided"}))
-        sys.exit(1)
-
-    audio_file_path = sys.argv[1]
-    
-    # Perform transcription
-    output = transcribe_audio(audio_file_path)
-    
-    # Print result as JSON
-    print(json.dumps(output))
+    process_queue()
