@@ -7,7 +7,7 @@ import logging
 
 # Configure logging
 logging.basicConfig(
-    filename='/path/to/worker.log',  # Replace with your desired log file path
+    filename='transcriber.log',  
     level=logging.DEBUG,            # Logging level
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
