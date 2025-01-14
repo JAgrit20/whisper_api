@@ -28,7 +28,7 @@ def process_queue():
 
             # Fetch the next queued recording
             cursor.execute("SELECT * FROM recordings WHERE status = 'queued' ORDER BY created_at LIMIT 1")
-            recording = cursor.fetchone()
+            recording = cursor.fetchone() 
 
             if recording:
                 # Mark as processing
